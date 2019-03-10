@@ -18,11 +18,21 @@ void error_exit(const char* message) {
 
 // converts char buffer to proper data message structure
 void deserialize_data_msg(const char* buffer, int len, struct data_message* msg) {
-    msg->type = buffer[0];
     memcpy(&msg->buffer, buffer, len);
+    msg->type = buffer[0];
+    msg->token_is_free = buffer[1];
 
-    // sender's name starts at the first index
-    msg->sender_index = 1;
+    // if the token is free, there is no more data
+    if (msg->token_is_free == 1) {
+        msg->sender_index = 0;
+        msg->receiver_index = 0;
+        msg->data_index = 0;
+        msg->total_length = 2;
+        return;
+    }
+
+    // sender's name starts at the second index
+    msg->sender_index = 2;
 
     // receiver's name is separated from sender's name with single 0
     msg->receiver_index = msg->sender_index + 1 + strlen(&msg->buffer[msg->sender_index]);
@@ -37,7 +47,7 @@ void deserialize_data_msg(const char* buffer, int len, struct data_message* msg)
 // converts char buffer to proper connection message structure
 void deserialize_connection_msg(const char* buffer, struct connection_message* msg) {
     msg->type = buffer[0];
-    msg->is_first_receiver = buffer[1];
+    msg->with_token = buffer[1];
     std::memcpy((void*)&msg->client_address, (void*)&buffer[2], sizeof(sockaddr_in));
     std::memcpy((void*)&msg->neighbour_address, (void*)&buffer[2 + sizeof(sockaddr_in)], sizeof(sockaddr_in));
 }
@@ -46,7 +56,7 @@ void deserialize_connection_msg(const char* buffer, struct connection_message* m
 // saves connection message into char array and returns the size of the serialized messages
 int serialize_connection_msg(const struct connection_message* msg, char* buffer) {
     buffer[0] = msg->type;
-    buffer[1] = msg->is_first_receiver;
+    buffer[1] = msg->with_token;
 
     std::memcpy((void*)&buffer[2], (void*)&msg->client_address, sizeof(sockaddr_in));
     std::memcpy((void*)&buffer[2 + sizeof(sockaddr_in)], (void*)&msg->neighbour_address, sizeof(sockaddr_in));

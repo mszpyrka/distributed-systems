@@ -4,11 +4,9 @@
 #include <netinet/in.h> 
 
 // protocol message types
-#define MSG_TOKEN_FREE  1   // free token
-#define MSG_TOKEN_TAKEN 2   // token + data message
-#define MSG_CONREQ      3   // connection request from new client
-#define MSG_CONACC      4   // connection request acceptance
-#define MSG_CONEST      5   // indication that new connection has been successfully established
+#define MSG_DATA    1   // data message
+#define MSG_CONREQ  2   // connection request
+#define MSG_CONFWD  3   // forwarding connection request
 
 #define TRANSPORT_TCP   1
 #define TRANSPORT_UDP   2
@@ -18,8 +16,9 @@
 #define MAX_MSG_SIZE 127
 
 struct data_message {
-    char buffer[MAX_MSG_SIZE];
     char type;
+    char token_is_free;
+    char buffer[MAX_MSG_SIZE];
     unsigned char sender_index;
     unsigned char receiver_index;
     unsigned char data_index;
@@ -28,12 +27,12 @@ struct data_message {
 
 struct connection_message {
     char type;
-    char is_first_receiver;
+    char with_token;
     sockaddr_in client_address;
     sockaddr_in neighbour_address;
 };
 
-void deserialize_data_msg(const char* buffer, int len, struct token_message* msg);
+void deserialize_data_msg(const char* buffer, int len, struct data_message* msg);
 
 void deserialize_connection_msg(const char* buffer, struct connection_message* msg);
 int serialize_connection_msg(const struct connection_message* msg, char* buffer);
