@@ -5,7 +5,7 @@
 
 // protocol message types
 #define MSG_TOKEN_FREE  1   // free token
-#define MSG_TOKEN_TAKEN 2   // token + chat message
+#define MSG_TOKEN_TAKEN 2   // token + data message
 #define MSG_CONREQ      3   // connection request from new client
 #define MSG_CONACC      4   // connection request acceptance
 #define MSG_CONEST      5   // indication that new connection has been successfully established
@@ -17,12 +17,12 @@
 
 #define MAX_MSG_SIZE 127
 
-struct token_message {
+struct data_message {
     char buffer[MAX_MSG_SIZE];
     char type;
     unsigned char sender_index;
     unsigned char receiver_index;
-    unsigned char message_index;
+    unsigned char data_index;
     unsigned char total_length;
 };
 
@@ -33,9 +33,9 @@ struct connection_message {
     sockaddr_in neighbour_address;
 };
 
-void deserialize_token_msg(const char* buffer, struct token_message* token);
-void deserialize_connection_msg(const char* buffer, struct connection_message* token);
-int serialize_token_msg(const struct token_message* msg, char* buffer);
+void deserialize_data_msg(const char* buffer, int len, struct token_message* msg);
+
+void deserialize_connection_msg(const char* buffer, struct connection_message* msg);
 int serialize_connection_msg(const struct connection_message* msg, char* buffer);
 
 void set_address(const char* ip_string, uint16_t port, sockaddr_in* address);

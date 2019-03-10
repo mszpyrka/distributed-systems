@@ -16,8 +16,8 @@ void error_exit(const char* message) {
 }
 
 
-// converts char buffer to proper token message structure
-void deserialize_token_msg(const char* buffer, int len, struct token_message* msg) {
+// converts char buffer to proper data message structure
+void deserialize_data_msg(const char* buffer, int len, struct data_message* msg) {
     msg->type = buffer[0];
     memcpy(&msg->buffer, buffer, len);
 
@@ -28,7 +28,9 @@ void deserialize_token_msg(const char* buffer, int len, struct token_message* ms
     msg->receiver_index = msg->sender_index + 1 + strlen(&msg->buffer[msg->sender_index]);
 
     // actual data is separated from receiver's name with single 0
-    msg->message_index = msg->receiver_index + 1 + strlen(&msg->buffer[msg->receiver_index]);
+    msg->data_index = msg->receiver_index + 1 + strlen(&msg->buffer[msg->receiver_index]);
+
+    msg->total_length = msg->data_index + strlen(&msg->buffer[msg->data_index]);
 }
 
 
@@ -120,7 +122,7 @@ int Transmission::receive_bytes(char* buffer, int buffer_len, struct sockaddr_in
     }
 
     socklen_t addr_len = sizeof(sockaddr_in);
-    int bytes_read = recvfrom(read_socket, buffer, buffer_len, 0, (struct sockaddr*) &sender_address, &addr_len);
+    int bytes_read = recvfrom(read_socket, buffer, buffer_len, 0, (struct sockaddr*) sender_address, &addr_len);
 
     if (bytes_read < 0)
         error_exit("ERROR when reading from socket");
