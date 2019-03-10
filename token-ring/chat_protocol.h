@@ -15,22 +15,26 @@
 
 #define MAX_TCP_REQUESTS 5
 
-#define MAX_MSG_SIZE 128
+#define MAX_MSG_SIZE 127
 
 struct token_message {
+    char buffer[MAX_MSG_SIZE];
     char type;
-    char message[MAX_MSG_SIZE];
+    unsigned char sender_index;
+    unsigned char receiver_index;
+    unsigned char message_index;
+    unsigned char total_length;
 };
 
 struct connection_message {
     char type;
-    char first_receiver;
+    char is_first_receiver;
     sockaddr_in client_address;
     sockaddr_in neighbour_address;
 };
 
-void get_token_msg(const char* buffer, struct token_message* token);
-void get_connection_msg(const char* buffer, struct connection_message* token);
+void deserialize_token_msg(const char* buffer, struct token_message* token);
+void deserialize_connection_msg(const char* buffer, struct connection_message* token);
 int serialize_token_msg(const struct token_message* msg, char* buffer);
 int serialize_connection_msg(const struct connection_message* msg, char* buffer);
 
