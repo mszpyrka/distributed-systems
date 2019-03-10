@@ -101,8 +101,12 @@ Transmission::Transmission(const char* ip_string, uint16_t port, char protocol) 
         _udp_socket = socket_fd;
     }
 
+    int enable = 1;
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+        error_exit("ERROR when setting SO_REUSEADDR option");
+
     if (bind(socket_fd, (const struct sockaddr*) &_self_address, sizeof(_self_address)) < 0)
-        error_exit("ERROR on binding socket");
+        error_exit("ERROR on binding to socket");
 
     if (protocol == TRANSPORT_TCP) {
         if (listen(socket_fd, MAX_TCP_REQUESTS) < 0)
@@ -121,18 +125,21 @@ int Transmission::receive_bytes(char* buffer, int buffer_len, struct sockaddr_in
 
     // socket that the data will be read from
     int read_socket;
+    int bytes_read;
 
     if (_transport_protocol == TRANSPORT_TCP) {
-        if ((read_socket = accept(_tcp_receive_socket, NULL, NULL)) < 0)
+        socklen_t addr_len = sizeof(sockaddr_in);
+        if ((read_socket = accept(_tcp_receive_socket, (struct sockaddr*) sender_address, &addr_len)) < 0)
             error_exit("ERROR when accepting on TCP socket");
+
+        bytes_read = recv(read_socket, buffer, buffer_len, 0);
     }
 
     else if (_transport_protocol == TRANSPORT_UDP) {
         read_socket = _udp_socket;
-    }
-
-    socklen_t addr_len = sizeof(sockaddr_in);
-    int bytes_read = recvfrom(read_socket, buffer, buffer_len, 0, (struct sockaddr*) sender_address, &addr_len);
+        socklen_t addr_len = sizeof(sockaddr_in);
+        bytes_read = recvfrom(read_socket, buffer, buffer_len, 0, (struct sockaddr*) sender_address, &addr_len);
+    } 
 
     if (bytes_read < 0)
         error_exit("ERROR when reading from socket");
