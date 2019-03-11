@@ -221,6 +221,7 @@ void token_process_thread(Transmission* ts) {
         // and stores it inside forward_buffer
         if (res == 0) {
             struct connection_message msg;
+            msg.sender_address = self_address;
             msg.client_address = request;
             msg.neighbour_address = self_address;
             msg.type = MSG_CONFWD;
@@ -324,6 +325,7 @@ void receive_thread(Transmission* ts) {
                 // of the network or the client preceeding the original message creator
                 else {
                     msg.type = MSG_CONFWD;
+                    msg.sender_address = self_address;
                     forward_data_size = serialize_connection_msg(&msg, forward_buffer);
                     token_is_free = false;
                 }
@@ -363,7 +365,7 @@ int main(int argc, char const *argv[]) {
     int next_port = atoi(argv[5]);
 
     transport_protocol = (strcmp(argv[6], "tcp") == 0) ? TRANSPORT_TCP : TRANSPORT_UDP;
-    Transmission ts(self_ip, self_port, transport_protocol, true);
+    Transmission ts(self_ip, self_port, transport_protocol, false);
 
     has_starting_token = (argc > 7) ? true : false;
 
@@ -380,6 +382,7 @@ int main(int argc, char const *argv[]) {
         has_starting_token = false;
 
         msg.client_address = self_address;
+        msg.sender_address = self_address;
         msg.neighbour_address = get_neighbour_address();
 
         char buffer[MAX_MSG_SIZE];
@@ -399,6 +402,4 @@ int main(int argc, char const *argv[]) {
 
     receiver.join();
     input.join();
-
-    sleep(10);
 }
