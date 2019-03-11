@@ -48,8 +48,9 @@ void deserialize_data_msg(const char* buffer, int len, struct data_message* msg)
 void deserialize_connection_msg(const char* buffer, struct connection_message* msg) {
     msg->type = buffer[0];
     msg->with_token = buffer[1];
-    std::memcpy((void*)&msg->client_address, (void*)&buffer[2], sizeof(sockaddr_in));
-    std::memcpy((void*)&msg->neighbour_address, (void*)&buffer[2 + sizeof(sockaddr_in)], sizeof(sockaddr_in));
+    std::memcpy((void*)&msg->sender_address, (void*)&buffer[2], sizeof(sockaddr_in));
+    std::memcpy((void*)&msg->client_address, (void*)&buffer[2 + sizeof(sockaddr_in)], sizeof(sockaddr_in));
+    std::memcpy((void*)&msg->neighbour_address, (void*)&buffer[2 + 2*sizeof(sockaddr_in)], sizeof(sockaddr_in));
 }
 
 
@@ -58,8 +59,9 @@ int serialize_connection_msg(const struct connection_message* msg, char* buffer)
     buffer[0] = msg->type;
     buffer[1] = msg->with_token;
 
-    std::memcpy((void*)&buffer[2], (void*)&msg->client_address, sizeof(sockaddr_in));
-    std::memcpy((void*)&buffer[2 + sizeof(sockaddr_in)], (void*)&msg->neighbour_address, sizeof(sockaddr_in));
+    std::memcpy((void*)&buffer[2], (void*)&msg->sender_address, sizeof(sockaddr_in));
+    std::memcpy((void*)&buffer[2 + sizeof(sockaddr_in)], (void*)&msg->client_address, sizeof(sockaddr_in));
+    std::memcpy((void*)&buffer[2 + 2*sizeof(sockaddr_in)], (void*)&msg->neighbour_address, sizeof(sockaddr_in));
 
     return sizeof(connection_message);
 }
@@ -85,33 +87,31 @@ Transmission::Transmission(const char* ip_string, uint16_t port, char protocol) 
     set_address(ip_string, port, &_self_address);
     _transport_protocol = protocol;
 
-    int socket_fd;
-
     if(protocol == TRANSPORT_TCP) {
-        if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        if ((_tcp_receive_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
             error_exit("ERROR on creating TCP socket");
 
-        _tcp_receive_socket = socket_fd;
+        int enable = 1;
+        if (setsockopt(_tcp_receive_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+            error_exit("ERROR when setting SO_REUSEADDR option");
+
+        if (bind(_tcp_receive_socket, (const struct sockaddr*) &_self_address, sizeof(_self_address)) < 0)
+            error_exit("ERROR on binding to TCP socket");
+
+        if (listen(_tcp_receive_socket, MAX_TCP_REQUESTS) < 0)
+            error_exit("ERROR when setting listen on TCP socket");
     }
 
-    else if(protocol == TRANSPORT_UDP) {
-        if ((socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-            error_exit("ERROR on creating UDP socket");
- 
-        _udp_socket = socket_fd;
-    }
+    // UDP socket needs to be created anyway for loggins purposes
+    if ((_udp_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        error_exit("ERROR on creating UDP socket");
 
     int enable = 1;
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+    if (setsockopt(_udp_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
         error_exit("ERROR when setting SO_REUSEADDR option");
 
-    if (bind(socket_fd, (const struct sockaddr*) &_self_address, sizeof(_self_address)) < 0)
-        error_exit("ERROR on binding to socket");
-
-    if (protocol == TRANSPORT_TCP) {
-        if (listen(socket_fd, MAX_TCP_REQUESTS) < 0)
-            error_exit("ERROR when setting listen on socketS");
-    }
+    if (bind(_udp_socket, (const struct sockaddr*) &_self_address, sizeof(_self_address)) < 0)
+        error_exit("ERROR on binding to UDP socket");
 }
 
 
@@ -187,4 +187,19 @@ int Transmission::send_bytes(const char* buffer, int size, const struct sockaddr
     }
 
     return bytes_sent;
+}
+
+
+
+/**
+ * Sends given message to logger multicast address. 
+ */
+void Transmission::log(const char* message, int len) {
+
+    struct sockaddr_in address;
+    set_address(LOGGER_IP, LOGGER_PORT, &address);
+    int bytes_sent = sendto(_udp_socket, message, len, 0, (const struct sockaddr*) &address, sizeof(sockaddr_in));
+
+    if (bytes_sent < 0)
+        error_exit("ERROR sending to loggers");
 }
