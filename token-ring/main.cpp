@@ -365,7 +365,7 @@ int main(int argc, char const *argv[]) {
     int next_port = atoi(argv[5]);
 
     transport_protocol = (strcmp(argv[6], "tcp") == 0) ? TRANSPORT_TCP : TRANSPORT_UDP;
-    Transmission ts(self_ip, self_port, transport_protocol, false);
+    Transmission ts(self_ip, self_port, transport_protocol);
 
     has_starting_token = (argc > 7) ? true : false;
 

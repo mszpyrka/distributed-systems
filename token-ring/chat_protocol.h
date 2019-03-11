@@ -58,7 +58,7 @@ class Transmission {
     bool _debug;
 
     public:
-        Transmission(const char* ip_string, uint16_t port, char protocol, bool debug);
+        Transmission(const char* ip_string, uint16_t port, char protocol, bool debug = false);
 
         int receive_bytes(char* buffer, int buffer_len, struct sockaddr_in* sender_address);
         int send_bytes(const char* buffer, int size, const struct sockaddr_in* address);

@@ -83,9 +83,10 @@ void set_address(const char* ip_string, uint16_t port, sockaddr_in* address) {
 // ==========================================================================================
 
 // sets up all address and socket related structures for given transport protocol
-Transmission::Transmission(const char* ip_string, uint16_t port, char protocol, bool debug = false) {
+Transmission::Transmission(const char* ip_string, uint16_t port, char protocol, bool debug) {
     set_address(ip_string, port, &_self_address);
     _transport_protocol = protocol;
+    _debug = debug;
 
     if(protocol == TRANSPORT_TCP) {
         if ((_tcp_receive_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
