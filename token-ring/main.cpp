@@ -32,7 +32,7 @@ bool logging = true;
 
 
 // initial setup parameters
-char* username;
+const char* username;
 sockaddr_in self_address;
 char transport_protocol;
 
@@ -69,6 +69,8 @@ void parse_data_message(const char* raw) {
 
 }
 
+char log_message[128];
+
 
 
 // connection requests queue
@@ -85,12 +87,30 @@ bool remove_connection_request(const struct sockaddr_in &address) {
     pending_requests.erase(std::make_pair(address.sin_port, address.sin_addr.s_addr));
 }
 
+/** 
+ * Removes and stores one request from pending_requests set inside given buffer.
+ * If the set is empty, returns -1.
+ */
+int get_pending_request(struct sockaddr_in* request) {
+    std::lock_guard<std::mutex> lock(mt_pending_requests);
+    auto request_info = pending_requests.begin();
+
+    if (request_info == pending_requests.end())
+        return -1;
+
+    pending_requests.erase(pending_requests.begin());
+    request->sin_family = AF_INET;
+    request->sin_port = request_info->first;
+    request->sin_addr.s_addr = request_info->second;
+    return 0;
+}
+
 
 
 // token parameters
 bool token_is_present;
 bool token_is_free;
-// std::mutex mt_token;
+
 
 
 // ==========================================================================================
@@ -98,11 +118,41 @@ bool token_is_free;
 // ==========================================================================================
 
 void token_process_thread(Transmission* ts) {
-    sleep(1);
-    std::cout << "pending requests: " << pending_requests.size() << std::endl;
-    for (auto it : pending_requests) {
-        std::cout << it.first << ' ' << it.second << std::endl;
+    sprintf(log_message, "%s received token", username);
+    ts->log(log_message, strlen(log_message));
+    usleep(TOKEN_SLEEP_TIME);
+
+    if (token_is_free) {
+
+        struct sockaddr_in request;
+        int res = get_pending_request(&request);
+
+        // if there is any pending request, the process creates proper connection message
+        // and stores it inside forward_buffer
+        if (res == 0) {
+            struct connection_message msg;
+            msg.client_address = request;
+            msg.neighbour_address = self_address;
+            msg.type = MSG_CONFWD;
+            msg.with_token = 1;
+
+            forward_data_size = serialize_connection_msg(&msg, forward_buffer);
+        }
+
+        // if no request is pending a data message with a token is created and optionally
+        // filled with a queued message
+        else {
+            // todo: proper structure initialization
+
+            forward_buffer[0] = MSG_DATA;
+            forward_buffer[1] = 1;
+            forward_data_size = 2;
+        }
     }
+
+    struct sockaddr_in dest = get_neighbour_address();
+    ts->send_bytes(forward_buffer, forward_data_size, &dest);
+    token_is_present = false;
 }
 
 void receive_thread(Transmission* ts) {
@@ -115,12 +165,13 @@ void receive_thread(Transmission* ts) {
         char token = buffer[1];
 
         std::cout << "received message with type " << (int) type << ", token: " << (int) token << std::endl; 
+        std::cout << "from " << sender_address.sin_addr.s_addr << " " << ntohs(sender_address.sin_port) << std::endl;
 
         if (token == 1) {
             // in case the process still has expired request from the sender
             // (if the sender gave the process the token, then it means that the sender
             // is already connected to the ring)
-            remove_connection_request(sender_address);
+            
         }
 
         if (type == MSG_DATA) {
@@ -128,30 +179,33 @@ void receive_thread(Transmission* ts) {
             deserialize_data_msg(buffer, msg_size, &msg);
 
             token_is_present = true;
-            token_is_free = (bool) msg.token_is_free;
+            token_is_free = (msg.token_is_free == 1) ? true : false;
 
-            // if the message is addressed to this process
-            if (strcmp(&msg.buffer[msg.receiver_index], username) == 0) {
-                std::cout << "message from " << &msg.buffer[msg.sender_index] << ": "
-                    << &msg.buffer[msg.data_index] << std::endl;
+            if (!token_is_free) {
 
-                // frees the token since the data has beed successfully delivered
-                token_is_free = true; 
-            }
-            
-            // if the message was sent by this process
-            else if (strcmp(&msg.buffer[msg.sender_index], username) == 0) {
-                std::cout << "message to " << &msg.buffer[msg.receiver_index] << ": \""
-                    << &msg.buffer[msg.data_index] << "\" was not delivered" <<  std::endl;
+                // if the message is addressed to this process
+                if (strcmp(&msg.buffer[msg.receiver_index], username) == 0) {
+                    std::cout << "message from " << &msg.buffer[msg.sender_index] << ": "
+                        << &msg.buffer[msg.data_index] << std::endl;
 
-                // frees the token since the receiver was not found in the network
-                token_is_free = true; 
-            }
+                    // frees the token since the data has beed successfully delivered
+                    token_is_free = true; 
+                }
+                
+                // if the message was sent by this process
+                else if (strcmp(&msg.buffer[msg.sender_index], username) == 0) {
+                    std::cout << "message to " << &msg.buffer[msg.receiver_index] << ": \""
+                        << &msg.buffer[msg.data_index] << "\" was not delivered" <<  std::endl;
 
-            // in any other case the process needs to simply forward the message
-            else {
-                memcpy(forward_buffer, &msg.buffer, msg_size);
-                forward_data_size = msg_size;
+                    // frees the token since the receiver was not found in the network
+                    token_is_free = true; 
+                }
+
+                // in any other case the process needs to simply forward the message
+                else {
+                    memcpy(forward_buffer, &msg.buffer, msg_size);
+                    forward_data_size = msg_size;
+                }
             }
         }
 
@@ -160,6 +214,7 @@ void receive_thread(Transmission* ts) {
             deserialize_connection_msg(buffer, &msg);
 
             if (msg.with_token) {
+                remove_connection_request(msg.sender_address);
                 token_is_present = true;
 
                 // when the process receives connection message with the token and either
@@ -171,6 +226,7 @@ void receive_thread(Transmission* ts) {
                         (!connection_established)) {
 
                     set_neighbour_address(msg.client_address);
+                    connection_established = true;
                     token_is_free = true;
                 }
 
@@ -179,19 +235,21 @@ void receive_thread(Transmission* ts) {
                 else {
                     msg.type = MSG_CONFWD;
                     forward_data_size = serialize_connection_msg(&msg, forward_buffer);
+                    token_is_free = false;
                 }
             }
 
-            // if the message doesn't contain the token, then it can only be connection request
+            // if the message doesn't contain the token, then it can only be a connection request
             // to this process that needs to be queued
             else {
-                add_connection_request(sender_address);
+                add_connection_request(msg.client_address);
             }
         }
 
         // after the message is processed, if the token was received,
         // the process needs to run the token processing thread
-        if (token_is_present) {
+        if (token) {
+            std::cout << "running token processing..." << std::endl;
             std::thread th(&token_process_thread, ts);
             th.detach();
         }
@@ -206,6 +264,8 @@ int main(int argc, char const *argv[]) {
     }
 
     // initial parameters setup
+    username = argv[1];
+
     const char* self_ip = argv[2];
     int self_port = atoi(argv[3]);
     set_address(self_ip, self_port, &self_address);
