@@ -53,10 +53,12 @@ class Transmission {
     sockaddr_in _self_address;
 
     int _udp_socket;
-    int _tcp_receive_socket, _tcp_send_socket;
+    int _tcp_receive_socket;
+
+    bool _debug;
 
     public:
-        Transmission(const char* ip_string, uint16_t port, char protocol);
+        Transmission(const char* ip_string, uint16_t port, char protocol, bool debug);
 
         int receive_bytes(char* buffer, int buffer_len, struct sockaddr_in* sender_address);
         int send_bytes(const char* buffer, int size, const struct sockaddr_in* address);

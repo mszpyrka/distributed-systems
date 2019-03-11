@@ -83,7 +83,7 @@ void set_address(const char* ip_string, uint16_t port, sockaddr_in* address) {
 // ==========================================================================================
 
 // sets up all address and socket related structures for given transport protocol
-Transmission::Transmission(const char* ip_string, uint16_t port, char protocol) {
+Transmission::Transmission(const char* ip_string, uint16_t port, char protocol, bool debug = false) {
     set_address(ip_string, port, &_self_address);
     _transport_protocol = protocol;
 
@@ -149,6 +149,9 @@ int Transmission::receive_bytes(char* buffer, int buffer_len, struct sockaddr_in
             error_exit("ERROR when closing TCP socket");
     }
 
+    if (_debug)
+        std::cout << "\033[1;31mreceiving " << bytes_read << " bytes from "
+        << ntohs(sender_address->sin_port) << "\033[0m" << std::endl;
     return bytes_read;
 }
 
@@ -185,6 +188,10 @@ int Transmission::send_bytes(const char* buffer, int size, const struct sockaddr
         if (close(write_socket) < 0)
             error_exit("ERROR when closing TCP socket");
     }
+
+    if (_debug)
+        std::cout << "\033[1;31msending " << bytes_sent << " bytes to "
+        << ntohs(address->sin_port) << "\033[0m" << std::endl;
 
     return bytes_sent;
 }
