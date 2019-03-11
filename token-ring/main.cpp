@@ -39,7 +39,7 @@ char transport_protocol;
 
 
 // stores the data that is to be forwarded
-char forward_buffer[MAX_MSG_SIZE];
+char forward_buffer[sizeof(data_message)];
 int forward_data_size;
 
 
@@ -65,8 +65,19 @@ struct sockaddr_in get_neighbour_address() {
 std::queue<struct data_message> message_queue;
 std::mutex mt_message_queue;
 
-void parse_data_message(const char* raw) {
+void push_data_message(struct data_message msg) {
+    std::lock_guard<std::mutex> lock(mt_message_queue);
+    message_queue.push(msg);
+}
 
+int pop_data_message(struct data_message* msg) {
+    std::lock_guard<std::mutex> lock(mt_message_queue);
+    if (message_queue.empty())
+        return -1;
+
+    memcpy(msg, &message_queue.front(), sizeof(struct data_message));
+    message_queue.pop();
+    return 0;
 }
 
 char log_message[128];
@@ -117,6 +128,60 @@ bool token_is_free;
 // Thread methods implementation
 // ==========================================================================================
 
+void user_input_thread() {
+
+    char input_buffer[MAX_MSG_SIZE];
+
+    while(true) {
+
+        printf("%s> ", username);
+        struct data_message msg;
+        msg.type = MSG_DATA;
+        msg.token_is_free = 0;
+        msg.sender_index = 2;
+        msg.buffer[0] = MSG_DATA;
+        msg.buffer[1] = 0;
+        strcpy(&msg.buffer[2], username);
+
+        int prev_token_len = strlen(username);
+
+        msg.buffer[msg.sender_index + prev_token_len] = '\0';
+
+        std::cin.getline(input_buffer, MAX_MSG_SIZE);
+        char *token = std::strtok(input_buffer, " ");
+
+        // first word - destination username
+        if (token != NULL) {
+            strcpy(&msg.buffer[msg.sender_index + prev_token_len + 1], token);
+            msg.receiver_index = msg.sender_index + prev_token_len + 1;
+            prev_token_len = strlen(token);
+            token = std::strtok(NULL, "\n");
+        }
+
+        else {
+            std::cout << "message format: dest_username text_message" << std::endl;
+            continue;
+        }
+
+        // rest of the message
+        if (token != NULL) {
+            strcpy(&msg.buffer[msg.receiver_index + prev_token_len + 1], token);
+            msg.data_index = msg.receiver_index + prev_token_len + 1;
+            prev_token_len = strlen(token);
+        }
+
+        else {
+            std::cout << "message format: dest_username text_message" << std::endl;
+            continue;
+        }
+
+        msg.total_length = msg.data_index + prev_token_len + 1;
+        msg.buffer[msg.total_length - 1] = '\0';
+        push_data_message(msg);
+        std::cout << "message enqueued" << std::endl;
+    }
+}
+
 void token_process_thread(Transmission* ts) {
     sprintf(log_message, "%s received token", username);
     ts->log(log_message, strlen(log_message));
@@ -142,11 +207,19 @@ void token_process_thread(Transmission* ts) {
         // if no request is pending a data message with a token is created and optionally
         // filled with a queued message
         else {
-            // todo: proper structure initialization
+            struct data_message msg;
+            int res = pop_data_message(&msg);
 
-            forward_buffer[0] = MSG_DATA;
-            forward_buffer[1] = 1;
-            forward_data_size = 2;
+            if (res == -1) {
+                forward_buffer[0] = MSG_DATA;
+                forward_buffer[1] = 1;
+                forward_data_size = 2;
+            }
+
+            else {
+                memcpy(forward_buffer, msg.buffer, msg.total_length);
+                forward_data_size = msg.total_length;
+            }   
         }
     }
 
@@ -162,19 +235,13 @@ void receive_thread(Transmission* ts) {
     while (true) {
         int msg_size = ts->receive_bytes(buffer, MAX_MSG_SIZE, &sender_address);
         char type = buffer[0];
-        char token = buffer[1];
+        bool token_received = buffer[1];
 
-        std::cout << "received message with type " << (int) type << ", token: " << (int) token << std::endl; 
-        std::cout << "from " << sender_address.sin_addr.s_addr << " " << ntohs(sender_address.sin_port) << std::endl;
-
-        if (token == 1) {
-            // in case the process still has expired request from the sender
-            // (if the sender gave the process the token, then it means that the sender
-            // is already connected to the ring)
-            
-        }
+        //std::cout << "received message with type " << (int) type << ", token: " << (int) token_received << std::endl; 
+        //std::cout << "from " << sender_address.sin_addr.s_addr << " " << ntohs(sender_address.sin_port) << std::endl;
 
         if (type == MSG_DATA) {
+            token_received = true;
             struct data_message msg;
             deserialize_data_msg(buffer, msg_size, &msg);
 
@@ -189,7 +256,7 @@ void receive_thread(Transmission* ts) {
                         << &msg.buffer[msg.data_index] << std::endl;
 
                     // frees the token since the data has beed successfully delivered
-                    token_is_free = true; 
+                    token_is_free = true;
                 }
                 
                 // if the message was sent by this process
@@ -214,6 +281,7 @@ void receive_thread(Transmission* ts) {
             deserialize_connection_msg(buffer, &msg);
 
             if (msg.with_token) {
+                token_received = true;
                 remove_connection_request(msg.sender_address);
                 token_is_present = true;
 
@@ -248,8 +316,7 @@ void receive_thread(Transmission* ts) {
 
         // after the message is processed, if the token was received,
         // the process needs to run the token processing thread
-        if (token) {
-            std::cout << "running token processing..." << std::endl;
+        if (token_received) {
             std::thread th(&token_process_thread, ts);
             th.detach();
         }
@@ -306,8 +373,10 @@ int main(int argc, char const *argv[]) {
     
     
     std::thread receiver(&receive_thread, &ts);
+    std::thread input(&user_input_thread);
 
     receiver.join();
+    input.join();
 
     sleep(10);
 }
