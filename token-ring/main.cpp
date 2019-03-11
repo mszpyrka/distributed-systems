@@ -26,15 +26,35 @@ bool operator==(const struct sockaddr_in &a, const struct sockaddr_in &b) {
 }
 
 
-// debugging parameters
-bool logging = true;
-
-
 
 // initial setup parameters
 const char* username;
 sockaddr_in self_address;
 char transport_protocol;
+
+
+
+// logging parameters
+bool logging = true;
+char log_message[128];
+int log_data_size;
+
+void format_log_message(const char* message_buffer, int size) {
+    std::string msg_type;
+    if (message_buffer[0] == MSG_DATA)
+        msg_type = "DATA";
+
+    else if (message_buffer[0] == MSG_CONREQ)
+        msg_type = "CONNECTION REQUEST";
+
+    else if (message_buffer[0] == MSG_CONFWD)
+        msg_type = "CONNECTION FORWARD";
+
+    int token = ((message_buffer[0] == MSG_DATA) || (message_buffer[1] == 1)) ? 1 : 0;
+
+    sprintf(log_message, "%s received message with type %s, token present: %d", username, msg_type.c_str(), token);
+    log_data_size = strlen(log_message);
+}
 
 
 
@@ -80,8 +100,6 @@ int pop_data_message(struct data_message* msg) {
     return 0;
 }
 
-char log_message[128];
-
 
 
 // connection requests queue
@@ -119,8 +137,16 @@ int get_pending_request(struct sockaddr_in* request) {
 
 
 // token parameters
-bool token_is_present;
+bool has_starting_token;
 bool token_is_free;
+std::mutex mt_token;
+
+bool get_starting_token() {
+    std::lock_guard<std::mutex> lock(mt_token);
+    bool result = has_starting_token;
+    has_starting_token = false;
+    return result;
+}
 
 
 
@@ -183,8 +209,7 @@ void user_input_thread() {
 }
 
 void token_process_thread(Transmission* ts) {
-    sprintf(log_message, "%s received token", username);
-    ts->log(log_message, strlen(log_message));
+
     usleep(TOKEN_SLEEP_TIME);
 
     if (token_is_free) {
@@ -225,7 +250,6 @@ void token_process_thread(Transmission* ts) {
 
     struct sockaddr_in dest = get_neighbour_address();
     ts->send_bytes(forward_buffer, forward_data_size, &dest);
-    token_is_present = false;
 }
 
 void receive_thread(Transmission* ts) {
@@ -234,18 +258,17 @@ void receive_thread(Transmission* ts) {
 
     while (true) {
         int msg_size = ts->receive_bytes(buffer, MAX_MSG_SIZE, &sender_address);
+        format_log_message(buffer, msg_size);
+        ts->log(log_message, log_data_size);
         char type = buffer[0];
-        bool token_received = buffer[1];
-
-        //std::cout << "received message with type " << (int) type << ", token: " << (int) token_received << std::endl; 
-        //std::cout << "from " << sender_address.sin_addr.s_addr << " " << ntohs(sender_address.sin_port) << std::endl;
+        bool token_received = false;
+        bool starting_token = get_starting_token();
 
         if (type == MSG_DATA) {
             token_received = true;
             struct data_message msg;
             deserialize_data_msg(buffer, msg_size, &msg);
 
-            token_is_present = true;
             token_is_free = (msg.token_is_free == 1) ? true : false;
 
             if (!token_is_free) {
@@ -280,10 +303,9 @@ void receive_thread(Transmission* ts) {
             struct connection_message msg;
             deserialize_connection_msg(buffer, &msg);
 
-            if (msg.with_token) {
+            if (msg.with_token || starting_token) {
                 token_received = true;
                 remove_connection_request(msg.sender_address);
-                token_is_present = true;
 
                 // when the process receives connection message with the token and either
                 // it is not connected to any client or its neighbour's address is the same
@@ -316,7 +338,7 @@ void receive_thread(Transmission* ts) {
 
         // after the message is processed, if the token was received,
         // the process needs to run the token processing thread
-        if (token_received) {
+        if (token_received || starting_token) {
             std::thread th(&token_process_thread, ts);
             th.detach();
         }
@@ -341,9 +363,9 @@ int main(int argc, char const *argv[]) {
     int next_port = atoi(argv[5]);
 
     transport_protocol = (strcmp(argv[6], "tcp") == 0) ? TRANSPORT_TCP : TRANSPORT_UDP;
-    Transmission ts(self_ip, self_port, transport_protocol);
+    Transmission ts(self_ip, self_port, transport_protocol, true);
 
-    token_is_present = (argc > 7) ? true : false;
+    has_starting_token = (argc > 7) ? true : false;
 
     if(next_port > 0) {
 
@@ -354,8 +376,8 @@ int main(int argc, char const *argv[]) {
         struct connection_message msg;
         msg.type = MSG_CONREQ;
 
-        msg.with_token = token_is_present;
-        token_is_present = 0;
+        msg.with_token = (int) has_starting_token;
+        has_starting_token = false;
 
         msg.client_address = self_address;
         msg.neighbour_address = get_neighbour_address();
