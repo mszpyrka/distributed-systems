@@ -1,66 +1,75 @@
 import org.jgroups.JChannel;
+import org.jgroups.protocols.UDP;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Scanner;
 
 public class TestApp {
 
-    public static void main(String[] args) throws Exception {
-        Scanner scanner = new Scanner(System.in);
-        JChannel channel = new JChannel();
+    public static void main(String[] args) {
 
-
-        DistributedMap map = new DistributedMap(channel);
-
-        channel.setReceiver(map);
-        channel.setDiscardOwnMessages(true);
+        System.setProperty("java.net.preferIPv4Stack","true");
 
         try {
-            channel.connect("test");
-        } catch (Exception e) {
+            new UDP().setValue("mcast_group_addr", InetAddress.getByName("224.225.226.228"));
+        } catch (UnknownHostException e) {
             e.printStackTrace();
         }
 
-        String command;
-        String key;
-        int value;
+        Scanner scanner = new Scanner(System.in);
 
-        boolean quit = false;
+        try (JChannel channel = new JChannel()){
 
-        while (!quit) {
-            command = scanner.next();
+            channel.connect("test");
+            DistributedMap map = new DistributedMap(channel);
 
-            switch (command) {
 
-                case "put":
-                    key = scanner.next();
-                    value = scanner.nextInt();
-                    map.put(key, value);
-                    break;
+            String command;
+            String key;
+            int value;
 
-                case "test":
-                    key = scanner.next();
-                    System.out.println(map.containsKey(key));
-                    break;
+            boolean quit = false;
 
-                case "get":
-                    key = scanner.next();
-                    System.out.println(map.get(key));
-                    break;
+            while (!quit) {
+                command = scanner.next();
 
-                case "remove":
-                    key = scanner.next();
-                    System.out.println(String.format("removing value %d", map.remove(key)));
-                    break;
+                switch (command) {
 
-                case "quit":
-                    quit = true;
-                    break;
+                    case "put":
+                        key = scanner.next();
+                        value = scanner.nextInt();
+                        map.put(key, value);
+                        break;
 
-                default:
-                    System.out.println("invalid command: " + command);
-                    break;
+                    case "test":
+                        key = scanner.next();
+                        System.out.println(map.containsKey(key));
+                        break;
 
+                    case "get":
+                        key = scanner.next();
+                        System.out.println(map.get(key));
+                        break;
+
+                    case "remove":
+                        key = scanner.next();
+                        System.out.println(String.format("removing value %d", map.remove(key)));
+                        break;
+
+                    case "quit":
+                        quit = true;
+                        break;
+
+                    default:
+                        System.out.println("invalid command: " + command);
+                        break;
+
+                }
             }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
