@@ -1,5 +1,6 @@
 import threading
 import pika
+from termcolor import colored
 
 
 class Consumer:
@@ -91,3 +92,28 @@ class Producer:
             body=message,
             **opts
         )
+
+
+class HospitalWorker:
+    """
+    Represents any worker that can receive info messages from admins.
+    """
+
+    def __init__(self, exchange_name, connection_address):
+        """
+        Initializes all data structures that will be used
+        for receiving processed examination requests.
+        """
+
+        self._admin_log_consumer = Consumer(exchange_name, connection_address)
+        self._log_queue = self._admin_log_consumer.add_queue(
+            routing_key='adm.info',
+            callback=self.process_admin_info
+        )
+        self._admin_log_consumer.start(new_thread=True)
+
+    def process_admin_info(self, ch, method, properties, body):
+        body = body.decode()
+        log = colored('INFO MESSAGE RECEIVED: ' + body, 'red')
+        print(log)
+        ch.basic_ack(delivery_tag=method.delivery_tag)
