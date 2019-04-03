@@ -1,9 +1,13 @@
 import pika
 import sys
-from utils import Consumer, Producer
+from termcolor import colored
+from random import randint
+from time import sleep
+
+from utils import Consumer, Producer, HospitalWorker
 
 
-class Specialist:
+class Specialist(HospitalWorker):
     """
     Receives and processes specialized requests.
     Every specialist must be able to process exactly two
@@ -11,6 +15,7 @@ class Specialist:
     """
 
     def __init__(self, exchange_name, connection_address, specializations):
+        super().__init__(exchange_name, connection_address)
 
         self._requests_consumer = Consumer(exchange_name, connection_address)
 
@@ -24,13 +29,21 @@ class Specialist:
 
         self._results_producer = Producer(exchange_name, connection_address)
 
-
     def process_request(self, ch, method, properties, body):
-
+        body = body.decode()
         request_id = properties.correlation_id
         target = properties.reply_to
 
-        print('received request: ', body, ' ( request id: ', request_id, ')')
+        log = colored('processing request: ' + body +
+                      ' (request id: ' + request_id[:8] + ')', 'green')
+        print(log, end='', flush=True)
+
+        time_to_sleep = randint(1, 5)
+        for _ in range(time_to_sleep):
+            print(colored('.', 'green'), end='', flush=True)
+            sleep(1)
+
+        print('')
 
         message_opts = {
             'properties': pika.BasicProperties(
@@ -40,7 +53,7 @@ class Specialist:
 
         self._results_producer.send_message(
             routing_key=target,
-            message='done',
+            message=body + ' done',
             **message_opts
         )
 
@@ -51,4 +64,8 @@ if __name__ == '__main__':
 
     specializations = sys.argv[1:]
 
-    spec = Specialist('hospital', 'localhost', specializations)
+    if len(specializations) != 2:
+        print('example usage: python3 specialist.py knee hip')
+
+    else:
+        spec = Specialist('hospital', 'localhost', specializations)
