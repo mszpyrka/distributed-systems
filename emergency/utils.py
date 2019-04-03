@@ -49,8 +49,6 @@ class Consumer:
     def start(self, new_thread=False):
         """
         Starts consuming messages from previously set queue.
-        :param new_thread:
-        :return:
         """
         if new_thread:
             thread = threading.Thread(target=self._channel.start_consuming,
@@ -101,19 +99,29 @@ class HospitalWorker:
 
     def __init__(self, exchange_name, connection_address):
         """
-        Initializes all data structures that will be used
-        for receiving processed examination requests.
+        Initializes structures responsible for receiving admin info
+        and publishing any messages.
         """
-
         self._admin_log_consumer = Consumer(exchange_name, connection_address)
         self._log_queue = self._admin_log_consumer.add_queue(
-            routing_key='adm.info',
+            routing_key='hosp.info',
             callback=self.process_admin_info
         )
         self._admin_log_consumer.start(new_thread=True)
 
+        self._producer = Producer(exchange_name, connection_address)
+
     def process_admin_info(self, ch, method, properties, body):
+        """
+        Callback for handling messages received from admins.
+        """
         body = body.decode()
-        log = colored('INFO MESSAGE RECEIVED: ' + body, 'red')
+        log = colored('INFO: ' + body, 'red')
         print(log)
         ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    def send_log(self, message):
+        """
+        Sends given message to admins in the system.
+        """
+        self._producer.send_message('hosp.log', message)

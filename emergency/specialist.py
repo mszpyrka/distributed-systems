@@ -4,7 +4,7 @@ from termcolor import colored
 from random import randint
 from time import sleep
 
-from utils import Consumer, Producer, HospitalWorker
+from utils import Consumer, HospitalWorker
 
 
 class Specialist(HospitalWorker):
@@ -15,6 +15,10 @@ class Specialist(HospitalWorker):
     """
 
     def __init__(self, exchange_name, connection_address, specializations):
+        """
+        Initializes connection structures, binds to each queue
+        corresponding to specializations.
+        """
         super().__init__(exchange_name, connection_address)
 
         self._requests_consumer = Consumer(exchange_name, connection_address)
@@ -22,14 +26,16 @@ class Specialist(HospitalWorker):
         for spec in specializations:
             self._requests_consumer.add_queue(
                 queue_name=spec,
-                routing_key='specialist.' + spec,
+                routing_key='hosp.' + spec,
                 callback=self.process_request)
 
         self._requests_consumer.start(new_thread=True)
 
-        self._results_producer = Producer(exchange_name, connection_address)
-
     def process_request(self, ch, method, properties, body):
+        """
+        Simulates processing injury examination by sleeping random
+        number of seconds (between 1 and 5) and sending back 'results' message.
+        """
         body = body.decode()
         request_id = properties.correlation_id
         target = properties.reply_to
@@ -50,12 +56,14 @@ class Specialist(HospitalWorker):
                 correlation_id=request_id
             )
         }
+        message = body + ' done'
 
-        self._results_producer.send_message(
+        self._producer.send_message(
             routing_key=target,
-            message=body + ' done',
+            message=message,
             **message_opts
         )
+        self.send_log(message)
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
 

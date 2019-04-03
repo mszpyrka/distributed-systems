@@ -2,7 +2,7 @@ import threading
 import pika
 from termcolor import colored
 
-from utils import Consumer, Producer, HospitalWorker
+from utils import Consumer, HospitalWorker
 from uuid import uuid4
 
 
@@ -27,16 +27,18 @@ class Medic(HospitalWorker):
             callback=self.process_results)
         self._results_consumer.start(new_thread=True)
 
-        self._requests_producer = Producer(exchange_name, connection_address)
-
         # Set of unique ids for every sent request
         # that hasn't been processed yet
         self._pending_requests = set()
         self._requests_lock = threading.Lock()
 
     def send_request(self, patient_name, injury_type):
+        """
+        Creates new request message and sends it to proper injury queue.
+        Adds unique request id to pending requests set.
+        """
         request_id = str(uuid4())
-        routing_key = 'specialist.' + injury_type
+        routing_key = 'hosp.' + injury_type
         message = patient_name + ' ' + injury_type
 
         message_opts = {
@@ -48,17 +50,22 @@ class Medic(HospitalWorker):
 
         with self._requests_lock:
             self._pending_requests.add(request_id)
-            self._requests_producer.send_message(
+            self._producer.send_message(
                 routing_key,
                 message,
                 **message_opts
             )
+            self.send_log(message)
 
         log = colored('sending request: ' + message +
                       ' (request id: ' + request_id[:8] + ')', 'blue')
         print(log)
 
     def process_results(self, ch, method, properties, body):
+        """
+        Removes request_id corresponding to received results
+        from pending requests set.
+        """
         body = body.decode()
         ignore = False
         request_id = properties.correlation_id
@@ -86,8 +93,8 @@ if __name__ == '__main__':
     while True:
         line = input()
         tokens = line.split()
-        if len(tokens) != 2:
-            print('expected input: [patient name] [injury type]')
+        if (len(tokens) != 2) or (tokens[1] not in ['knee', 'elbow', 'hip']):
+            print('expected input: [patient_name] [knee | elbow | hip]')
 
         else:
             name = tokens[0]

@@ -9,26 +9,21 @@ class Administrator:
     """
 
     def __init__(self, exchange_name, connection_address):
-        self._sniffer = Consumer(exchange_name, connection_address)
-        self._sniffer_queue = self._sniffer.add_queue(
-            routing_key='#',
-            callback=self.process_message
+        self._log_consumer = Consumer(exchange_name, connection_address)
+        self._log_queue = self._log_consumer.add_queue(
+            routing_key='hosp.log',
+            callback=self.process_log
         )
-        self._sniffer.start(new_thread=True)
-
+        self._log_consumer.start(new_thread=True)
         self._info_producer = Producer(exchange_name, connection_address)
 
     def send_info(self, message):
         print('sending info: ', message)
-        self._info_producer.send_message('adm.info', message)
+        self._info_producer.send_message('hosp.info', message)
 
-    def process_message(self, ch, method, properties, body):
+    def process_log(self, ch, method, properties, body):
         body = body.decode()
-        id_tag = ' (id: ' + properties.correlation_id[:8] + ')'\
-            if properties.correlation_id is not None \
-            else ''
-
-        log = colored('sniffed message: ' + body + id_tag, 'green')
+        log = colored('LOG: ' + body, 'yellow')
         print(log)
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
