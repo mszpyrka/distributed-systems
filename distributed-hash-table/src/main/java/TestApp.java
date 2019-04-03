@@ -1,5 +1,5 @@
 import org.jgroups.JChannel;
-import org.jgroups.protocols.UDP;
+import org.jgroups.protocols.*;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -9,13 +9,15 @@ public class TestApp {
 
     public static void main(String[] args) {
 
+
         System.setProperty("java.net.preferIPv4Stack","true");
 
         try {
-            new UDP().setValue("mcast_group_addr", InetAddress.getByName("224.225.226.228"));
+            new UDP().setValue("mcast_group_addr", InetAddress.getByName("230.225.226.228"));
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+
 
         Scanner scanner = new Scanner(System.in);
 
@@ -59,6 +61,10 @@ public class TestApp {
 
                     case "quit":
                         quit = true;
+                        break;
+
+                    case "dump":
+                        map.dump();
                         break;
 
                     default:

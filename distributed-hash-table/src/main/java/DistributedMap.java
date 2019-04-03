@@ -2,6 +2,7 @@ import org.jgroups.*;
 import org.jgroups.util.Util;
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,7 +16,7 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
         this.channel = channel;
         this.channel.setReceiver(this);
         this.channel.setDiscardOwnMessages(true);
-        this.map = new ConcurrentHashMap<>();
+        this.map = new HashMap<>();
 
         // Fetches initial state from group's coordinator.
         try {
@@ -35,6 +36,12 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             this.channel.send(msg);
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    public void dump() {
+        for (Map.Entry<String, Integer> entry : map.entrySet()) {
+            System.out.println(String.format("%s = %d", entry.getKey(), entry.getValue()));
         }
     }
 
@@ -87,10 +94,13 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
 
     @Override
     public void setState(InputStream input) throws Exception {
-        Map<String, Integer> newMap = Util.objectFromStream(new DataInputStream(input));
+        Map<String, Integer> newMap = (HashMap<String, Integer>) Util.objectFromStream(new DataInputStream(input));
         synchronized(this.map) {
             this.map.clear();
             this.map.putAll(newMap);
+
+            System.out.println("overriding local data with:");
+            dump();
         }
     }
 
@@ -156,7 +166,7 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
 
             if (!mainPartition.getMembers().contains(localAddress)) {
                 try {
-                    this.channel.getState(null, 0);
+                    this.channel.getState(null, 3000);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
