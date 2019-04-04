@@ -8,18 +8,18 @@ class Administrator:
     Is allowed to broadcast messages to all other workers.
     """
 
-    def __init__(self, exchange_name, connection_address):
-        self._log_consumer = Consumer(exchange_name, connection_address)
+    def __init__(self):
+        self._log_consumer = Consumer('hospital', 'topic', 'localhost')
         self._log_queue = self._log_consumer.add_queue(
-            routing_key='hosp.log',
+            routing_key='#',
             callback=self.process_log
         )
         self._log_consumer.start(new_thread=True)
-        self._info_producer = Producer(exchange_name, connection_address)
+        self._info_producer = Producer('info', 'fanout', 'localhost')
 
     def send_info(self, message):
         print('sending info: ', message)
-        self._info_producer.send_message('hosp.info', message)
+        self._info_producer.send_message(message=message)
 
     def process_log(self, ch, method, properties, body):
         body = body.decode()
@@ -30,7 +30,7 @@ class Administrator:
 
 if __name__ == '__main__':
 
-    admin = Administrator('hospital', 'localhost')
+    admin = Administrator()
 
     while True:
         line = input()

@@ -15,14 +15,14 @@ class Medic(HospitalWorker):
         - elbow examination
     """
 
-    def __init__(self, exchange_name, connection_address):
+    def __init__(self):
         """
         Initializes all data structures that will be used
         for receiving processed examination requests.
         """
-        super().__init__(exchange_name, connection_address)
+        super().__init__()
 
-        self._results_consumer = Consumer(exchange_name, connection_address)
+        self._results_consumer = Consumer('hospital', 'topic', 'localhost')
         self._results_queue = self._results_consumer.add_queue(
             callback=self.process_results)
         self._results_consumer.start(new_thread=True)
@@ -55,7 +55,6 @@ class Medic(HospitalWorker):
                 message,
                 **message_opts
             )
-            self.send_log(message)
 
         log = colored('sending request: ' + message +
                       ' (request id: ' + request_id[:8] + ')', 'blue')
@@ -88,7 +87,7 @@ class Medic(HospitalWorker):
 
 if __name__ == '__main__':
 
-    medic = Medic('hospital', 'localhost')
+    medic = Medic()
 
     while True:
         line = input()

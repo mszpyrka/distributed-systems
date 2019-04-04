@@ -14,14 +14,14 @@ class Specialist(HospitalWorker):
     out of three injury types (hip / knee / elbow).
     """
 
-    def __init__(self, exchange_name, connection_address, specializations):
+    def __init__(self, specializations):
         """
         Initializes connection structures, binds to each queue
         corresponding to specializations.
         """
-        super().__init__(exchange_name, connection_address)
+        super().__init__()
 
-        self._requests_consumer = Consumer(exchange_name, connection_address)
+        self._requests_consumer = Consumer('hospital', 'topic', 'localhost')
 
         for spec in specializations:
             self._requests_consumer.add_queue(
@@ -63,7 +63,6 @@ class Specialist(HospitalWorker):
             message=message,
             **message_opts
         )
-        self.send_log(message)
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -76,4 +75,4 @@ if __name__ == '__main__':
         print('example usage: python3 specialist.py knee hip')
 
     else:
-        spec = Specialist('hospital', 'localhost', specializations)
+        spec = Specialist(specializations)

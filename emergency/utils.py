@@ -8,16 +8,16 @@ class Consumer:
     Implements basic communication setup and message receiving methods.
     """
 
-    def __init__(self, exchange_name, connection_address):
+    def __init__(self, exchange_name, exchange_type, connection_address):
         """
         Creates initial setup.
         """
         self._exchange_name = exchange_name
         self._connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=connection_address))
+            pika.ConnectionParameters(host=connection_address, heartbeat=30))
         self._channel = self._connection.channel()
         self._channel.exchange_declare(exchange=exchange_name,
-                                       exchange_type='topic',
+                                       exchange_type=exchange_type,
                                        auto_delete=True)
         self._channel.basic_qos(prefetch_count=1)
         self._queues = []
@@ -67,19 +67,19 @@ class Producer:
     Implements basic functionality for sending messages.
     """
 
-    def __init__(self, exchange_name, connection_address):
+    def __init__(self, exchange_name, exchange_type, connection_address):
         """
         Creates initial setup.
         """
         self._exchange_name = exchange_name
         self._connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=connection_address))
+            pika.ConnectionParameters(host=connection_address, heartbeat=30))
         self._channel = self._connection.channel()
         self._channel.exchange_declare(exchange=exchange_name,
-                                       exchange_type='topic',
+                                       exchange_type=exchange_type,
                                        auto_delete=True)
 
-    def send_message(self, routing_key, message, **opts):
+    def send_message(self, routing_key='', message=None, **opts):
         """
         Sends given message to previously initialized exchange.
             - opts: options passed to basic_publish method
@@ -97,21 +97,20 @@ class HospitalWorker:
     Represents any worker that can receive info messages from admins.
     """
 
-    def __init__(self, exchange_name, connection_address):
+    def __init__(self):
         """
         Initializes structures responsible for receiving admin info
         and publishing any messages.
         """
-        self._admin_log_consumer = Consumer(exchange_name, connection_address)
-        self._log_queue = self._admin_log_consumer.add_queue(
-            routing_key='hosp.info',
-            callback=self.process_admin_info
+        self._info_consumer = Consumer('info', 'fanout', 'localhost')
+        self._info_queue = self._info_consumer.add_queue(
+            callback=self.process_info
         )
-        self._admin_log_consumer.start(new_thread=True)
+        self._info_consumer.start(new_thread=True)
 
-        self._producer = Producer(exchange_name, connection_address)
+        self._producer = Producer('hospital', 'topic', 'localhost')
 
-    def process_admin_info(self, ch, method, properties, body):
+    def process_info(self, ch, method, properties, body):
         """
         Callback for handling messages received from admins.
         """
@@ -119,9 +118,3 @@ class HospitalWorker:
         log = colored('INFO: ' + body, 'red')
         print(log)
         ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    def send_log(self, message):
-        """
-        Sends given message to admins in the system.
-        """
-        self._producer.send_message('hosp.log', message)
