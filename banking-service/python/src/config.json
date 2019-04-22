@@ -1,0 +1,14 @@
+{
+    "currencyServer": 
+    {
+        "address": "0.0.0.0",
+        "port": 9990,
+        "updateInterval": 5000
+    },
+    "bank":
+    {
+        "address": "0.0.0.0",
+        "registrationPort": 9991,
+        "userServicePort": 9992
+    }
+}
