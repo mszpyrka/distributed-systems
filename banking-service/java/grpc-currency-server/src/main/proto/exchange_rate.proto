@@ -14,7 +14,8 @@ enum Currency {
 
 // List of currencies that a bank is interested in.
 message Subscription {
-    repeated Currency currencies = 1;
+    Currency homeCurrency = 1;
+    repeated Currency foreignCurrencies = 2;
 }
 
 // Single currency exchange rate value
@@ -30,16 +31,9 @@ message RatesUpdate {
     repeated CurrencyValue rates = 1;
 }
 
-// test
-message Hello {
-    string hello = 1;
-}
-
 // The exchange rate service definition.
 service ExchangeRatesProvider {
 
   // Provides initial info and consecutive updates.
   rpc subscribe (Subscription) returns (stream RatesUpdate) {}
-
-  rpc hello (Hello) returns (Hello) {}
 }

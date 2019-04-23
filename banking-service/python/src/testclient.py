@@ -15,13 +15,11 @@ def run(config):
     with grpc.insecure_channel(config['address'] + ':' + str(config['port'])) as channel:
         stub = exchange_rate_pb2_grpc.ExchangeRatesProviderStub(channel)
 
-        response = stub.hello(exchange_rate_pb2.Hello(hello='hi'))
-        print(response)
-
         cur = [exchange_rate_pb2.CHF, exchange_rate_pb2.PLN]
 
         msg = exchange_rate_pb2.Subscription()
-        msg.currencies[:] = cur
+        msg.homeCurrency = exchange_rate_pb2.EUR
+        msg.foreignCurrencies[:] = cur
         updates = stub.subscribe(msg)
 
         try:

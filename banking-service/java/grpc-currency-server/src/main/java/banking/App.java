@@ -15,11 +15,11 @@ public class App
     {
 
         HashMap<ExchangeRate.Currency, Double> initRates = new HashMap<ExchangeRate.Currency, Double>();
-        initRates.put(ExchangeRate.Currency.PLN, 5.);
-        initRates.put(ExchangeRate.Currency.USD, 5.);
-        initRates.put(ExchangeRate.Currency.CHF, 5.);
-        initRates.put(ExchangeRate.Currency.EUR, 5.);
-        initRates.put(ExchangeRate.Currency.GBP, 5.);
+        initRates.put(ExchangeRate.Currency.PLN, 1.);
+        initRates.put(ExchangeRate.Currency.USD, 3.81);
+        initRates.put(ExchangeRate.Currency.CHF, 3.75);
+        initRates.put(ExchangeRate.Currency.EUR, 4.27);
+        initRates.put(ExchangeRate.Currency.GBP, 4.94);
 
         // Create a new server to listen on port 8080
         Server server = ServerBuilder.forPort(9990)

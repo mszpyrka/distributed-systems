@@ -8,7 +8,7 @@ import java.util.logging.Logger;
 
 public class ExchangeRates extends Observable {
 
-    private static final Logger logger = Logger.getLogger(CurrencyServer.class.getName());
+    private static final Logger logger = Logger.getLogger(ExchangeRates.class.getName());
 
     private final Map<ExchangeRate.Currency, Double> exchangeRates;
     private final Map<ExchangeRate.Currency, Boolean> wasUpdated;

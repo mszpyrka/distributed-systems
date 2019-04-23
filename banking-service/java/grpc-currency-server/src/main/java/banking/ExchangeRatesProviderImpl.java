@@ -9,7 +9,7 @@ import java.util.logging.Logger;
 
 public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.ExchangeRatesProviderImplBase {
 
-    private static final Logger logger = Logger.getLogger(CurrencyServer.class.getName());
+    private static final Logger logger = Logger.getLogger(ExchangeRatesProviderImpl.class.getName());
 
     private final ExchangeRates exchangeRates;
     private final ReadWriteLock exchangeRatesLock;
@@ -59,18 +59,6 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
         }
     }
 
-    @Override
-    public void hello(ExchangeRate.Hello hello, StreamObserver<ExchangeRate.Hello> responseObserver) {
-
-        ExchangeRate.Hello response = ExchangeRate.Hello
-                .newBuilder()
-                .setHello("hello")
-                .build();
-
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
     /**
      * This service provides full exchange rates data at the moment is is called,
      * and after that sends updates every time the rates are changed.
@@ -81,12 +69,15 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
             StreamObserver<ExchangeRate.RatesUpdate> responseObserver
     ) {
 
-        StringBuilder log = new StringBuilder().append("new subscriber: ");
+        StringBuilder log = new StringBuilder().append(String.format(
+                "new subscriber: home=%s, foreign=(",
+                subscription.getHomeCurrency().toString())
+        );
 
-        for (ExchangeRate.Currency c : subscription.getCurrenciesList()) {
+        for (ExchangeRate.Currency c : subscription.getForeignCurrenciesList()) {
             log.append(String.format("%s ", c.toString()));
         }
-        log.append('\n');
+        log.append(")\n");
         logger.info(log.toString());
 
         ExchangeRate.RatesUpdate.Builder initialResponse = ExchangeRate.RatesUpdate
@@ -96,23 +87,24 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
 
         Map<ExchangeRate.Currency, Double> rates = exchangeRates.getRates();
 
-        for (ExchangeRate.Currency c : subscription.getCurrenciesList()) {
+        ExchangeRatesObserver observer = new ExchangeRatesObserver(
+                exchangeRatesLock,
+                subscription.getHomeCurrency(),
+                subscription.getForeignCurrenciesList(),
+                responseObserver
+        );
+
+        for (ExchangeRate.Currency c : subscription.getForeignCurrenciesList()) {
             ExchangeRate.CurrencyValue currencyValue = ExchangeRate.CurrencyValue
                     .newBuilder()
                     .setCurrency(c)
-                    .setValue(rates.get(c).floatValue())
+                    .setValue((float) observer.convertToHomeCurrency(c, rates))
                     .build();
 
             initialResponse.addRates(currencyValue);
         }
 
         responseObserver.onNext(initialResponse.build());
-
-        ExchangeRatesObserver observer = new ExchangeRatesObserver(
-                exchangeRatesLock,
-                subscription.getCurrenciesList(),
-                responseObserver
-        );
 
         exchangeRates.addObserver(observer);
         exchangeRatesLock.readLock().unlock();
