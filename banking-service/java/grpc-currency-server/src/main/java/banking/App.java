@@ -2,17 +2,17 @@ package banking;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.netty.NettyServerBuilder;
 
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 
-/**
- * Hello world!
- *
- */
 public class App
 {
     public static void main( String[] args ) throws Exception
     {
+        String address = args[0];
+        String port = args[1];
 
         HashMap<ExchangeRate.Currency, Double> initRates = new HashMap<ExchangeRate.Currency, Double>();
         initRates.put(ExchangeRate.Currency.PLN, 1.);
@@ -21,17 +21,13 @@ public class App
         initRates.put(ExchangeRate.Currency.EUR, 4.27);
         initRates.put(ExchangeRate.Currency.GBP, 4.94);
 
-        // Create a new server to listen on port 8080
-        Server server = ServerBuilder.forPort(9990)
+        Server server = NettyServerBuilder.forAddress(new InetSocketAddress(address, Integer.parseInt(port)))
                 .addService(new ExchangeRatesProviderImpl(initRates, 5))
                 .build();
 
-        // Start the server
         server.start();
 
-        // Server threads are running in the background.
         System.out.println("Server started");
-        // Don't exit the main thread. Wait until server is terminated.
         server.awaitTermination();
     }
 }

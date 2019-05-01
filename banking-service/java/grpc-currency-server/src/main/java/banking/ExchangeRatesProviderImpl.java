@@ -3,7 +3,9 @@ package banking;
 import io.grpc.stub.StreamObserver;
 
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
@@ -13,6 +15,8 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
 
     private final ExchangeRates exchangeRates;
     private final ReadWriteLock exchangeRatesLock;
+
+    private final Lock simulationLock;
 
     private final int currencyUpdateInterval;
 
@@ -32,13 +36,44 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
         this.currencyUpdateInterval = currencyUpdateInterval;
         this.exchangeRates = new ExchangeRates(initialRates);
         this.exchangeRatesLock = new ReentrantReadWriteLock();
+        this.simulationLock = new ReentrantLock();
 
-        Thread t = new Thread() {
+        Thread simulation = new Thread() {
             public void run() {
                 simulateCurrencyStock();
             }
         };
-        t.start();
+        simulation.start();
+
+        Thread control = new Thread() {
+            public void run() {
+                simulationControl();
+            }
+        };
+        control.start();
+    }
+
+    private void simulationControl() {
+        Scanner scanner = new Scanner(System.in);
+        boolean paused = false;
+        while(true) {
+            String command = scanner.next();
+            if(command.equals("p")) {
+                if (paused) {
+                    paused = false;
+                    this.simulationLock.unlock();
+                    System.out.println("simulation resumed");
+                }
+                else {
+                    paused = true;
+                    this.simulationLock.lock();
+                    System.out.println("simulation paused");
+                }
+            }
+            else {
+                System.out.println("type 'p' to pause / play");
+            }
+        }
     }
 
     /**
@@ -53,9 +88,11 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
                 e.printStackTrace();
             }
 
+            simulationLock.lock();
             exchangeRatesLock.writeLock().lock();
             exchangeRates.update(CURRENCY_UPDATE_CHANCE, MIN_UPDATE_VALUE, MAX_UPDATE_VALUE);
             exchangeRatesLock.writeLock().unlock();
+            simulationLock.unlock();
         }
     }
 

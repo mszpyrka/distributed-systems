@@ -27,6 +27,11 @@ public class ExchangeRatesObserver implements Observer {
         this.responseObserver = responseObserver;
     }
 
+    /**
+     * Called every time exchange rates are updated.
+     * Sends updates to remote subscriber if either home currency
+     * or any of subscribed foreign currencies changed during last update.
+     */
     public void update(Observable obj, Object arg) {
 
         ratesLock.readLock().lock();

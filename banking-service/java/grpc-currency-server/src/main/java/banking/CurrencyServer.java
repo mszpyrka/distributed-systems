@@ -68,10 +68,11 @@ public class CurrencyServer {
 
     /**
      * Main method.  This comment makes the linter happy.
-     */
+
     public static void main(String[] args) throws Exception {
         CurrencyServer server = new CurrencyServer(9990);
         server.start();
         server.blockUntilShutdown();
     }
+     */
 }
