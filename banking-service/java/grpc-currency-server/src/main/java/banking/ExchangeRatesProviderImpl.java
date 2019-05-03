@@ -53,6 +53,10 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
         control.start();
     }
 
+    /**
+     * Provides simple control over simulation flow by allowing the user
+     * to stop / resume the simulation.
+     */
     private void simulationControl() {
         Scanner scanner = new Scanner(System.in);
         boolean paused = false;
@@ -107,14 +111,14 @@ public class ExchangeRatesProviderImpl extends ExchangeRatesProviderGrpc.Exchang
     ) {
 
         StringBuilder log = new StringBuilder().append(String.format(
-                "new subscriber: home=%s, foreign=(",
+                "new subscriber: home=%s, foreign=",
                 subscription.getHomeCurrency().toString())
         );
 
         for (ExchangeRate.Currency c : subscription.getForeignCurrenciesList()) {
             log.append(String.format("%s ", c.toString()));
         }
-        log.append(")\n");
+        log.append("\n");
         logger.info(log.toString());
 
         ExchangeRate.RatesUpdate.Builder initialResponse = ExchangeRate.RatesUpdate

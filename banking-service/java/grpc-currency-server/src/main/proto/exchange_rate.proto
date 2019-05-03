@@ -19,8 +19,6 @@ message Subscription {
 }
 
 // Single currency exchange rate value
-// (for simplicity it is assumed that there is some constant
-// reference value for each currency's exchange rate)
 message CurrencyValue {
     Currency currency = 1;
     float value = 2;
@@ -34,6 +32,6 @@ message RatesUpdate {
 // The exchange rate service definition.
 service ExchangeRatesProvider {
 
-  // Provides initial info and consecutive updates.
-  rpc subscribe (Subscription) returns (stream RatesUpdate) {}
+    // Provides initial info and consecutive updates.
+    rpc subscribe (Subscription) returns (stream RatesUpdate) {}
 }

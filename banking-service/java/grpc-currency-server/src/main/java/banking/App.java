@@ -27,7 +27,7 @@ public class App
 
         server.start();
 
-        System.out.println("Server started");
+        System.out.println(String.format("Server started at %s:%s", address, port));
         server.awaitTermination();
     }
 }
