@@ -222,8 +222,10 @@ class BankManagerI(Accounts.BankManager):
 
         self._connect_to_exchange_rates_provider()
 
-        print('home currency: {}\nforeign currencies: {}'.format(
-            self._home_currency, self._foreign_currencies))
+        print('home currency: {}'.format(self._home_currency))
+        print('foreign currencies: {}'.format(self._foreign_currencies))
+        print('premium account threshold: {}'.format(
+            self._premium_account_threshold))
 
     def _connect_to_exchange_rates_provider(self):
         """
