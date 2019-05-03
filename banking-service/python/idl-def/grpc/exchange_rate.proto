@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option java_package = "banking";
+
+// Available currencies.
+enum Currency {
+    UNKNOWN = 0;
+    GBP = 1;
+    EUR = 2;
+    CHF = 3;
+    USD = 4;
+    PLN = 5;
+}
+
+// List of currencies that a bank is interested in.
+message Subscription {
+    Currency homeCurrency = 1;
+    repeated Currency foreignCurrencies = 2;
+}
+
+// Single currency exchange rate value
+message CurrencyValue {
+    Currency currency = 1;
+    float value = 2;
+}
+
+// List of currency values
+message RatesUpdate {
+    repeated CurrencyValue rates = 1;
+}
+
+// The exchange rate service definition.
+service ExchangeRatesProvider {
+
+  // Provides initial info and consecutive updates.
+  rpc subscribe (Subscription) returns (stream RatesUpdate) {}
+}
